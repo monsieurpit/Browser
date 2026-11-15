@@ -14,7 +14,7 @@ const SESSION_TTL_SECONDS = 12 * 60 * 60;
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const VIEWPORT = { width: 1024, height: 640 };
-const FRAME_INTERVAL_MS = 83;
+const HOME_URL = `http://127.0.0.1:${PORT}/start`;
 const loginAttempts = new Map();
 const cookieName = 'browser_session';
 const isProduction = process.env.NODE_ENV === 'production';
@@ -135,6 +135,12 @@ app.get(['/menu', '/menu/'], requireSession, (_req, res) => {
 app.get('/app.html', requireSession, (_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'app.html'));
 });
+app.get('/start', (req, res) => {
+  const local = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress);
+  if (!local || req.headers['x-forwarded-for']) return res.status(404).end();
+  res.set('Cache-Control', 'no-store');
+  return res.sendFile(path.join(__dirname, 'start.html'));
+});
 app.get('/', (req, res) => {
   res.redirect(hasSession(req) ? '/app/' : '/login');
 });
@@ -146,7 +152,9 @@ app.use(express.static(path.join(__dirname, 'public'), { index: false, dotfiles:
 let browser;
 let page;
 let activeSocket;
-let actionQueue = Promise.resolve();
+let navQueue = Promise.resolve();
+let inputQueue = Promise.resolve();
+let cdp;
 const activeAudioStreams = new Map();
 
 function findChromium() {
@@ -262,6 +270,11 @@ async function handleMessage(socket, raw) {
       case 'navigate':
         await openAddress(socket, message.url);
         break;
+      case 'home':
+        resetAudioStreams(socket);
+        await page.goto(HOME_URL, { waitUntil: 'domcontentloaded', timeout: 20_000 });
+        send(socket, { type: 'page', url: 'about:blank', title: 'Home' });
+        break;
       case 'back':
         resetAudioStreams(socket);
         await page.goBack({ waitUntil: 'domcontentloaded', timeout: 20_000 });
@@ -335,33 +348,54 @@ sockets.on('connection', async (socket) => {
     send(socket, { type: 'audio-start', id });
     if (firstChunk) sendAudioChunk(socket, id, firstChunk);
   }
-  send(socket, { type: 'page', url: page.url(), title: await page.title().catch(() => '') });
   socket.on('message', (message) => {
-    actionQueue = actionQueue
-      .then(() => handleMessage(socket, message))
-      .catch((error) => send(socket, { type: 'error', message: error.message || 'The browser action failed.' }));
+    const isNav = /"type"\s*:\s*"(navigate|back|forward|reload|home)"/.test(message.toString());
+    const run = () => handleMessage(socket, message);
+    // Input never waits behind a slow page load.
+    const queued = (isNav ? navQueue : inputQueue).then(run);
+    if (isNav) navQueue = queued.catch(() => {}); else inputQueue = queued.catch(() => {});
+    queued.catch((error) => send(socket, { type: 'error', message: error.message || 'The browser action failed.' }));
   });
   socket.on('close', () => {
-    if (activeSocket === socket) activeSocket = undefined;
+    if (activeSocket === socket) {
+      activeSocket = undefined;
+      void setScreencast(false);
+    }
   });
+  void setScreencast(true);
+  send(socket, { type: 'page', url: page.url(), title: await page.title().catch(() => '') });
 });
 
-async function streamScreenshots() {
-  if (activeSocket?.readyState === WebSocket.OPEN && activeSocket.bufferedAmount < 512 * 1024) {
-    try {
-      const image = await page.screenshot({
-        type: 'jpeg',
-        quality: 60,
-        optimizeForSpeed: true,
-      });
-      activeSocket.send(Buffer.concat([Buffer.from([0]), image]), { binary: true });
-    } catch (error) {
-      if (activeSocket?.readyState === WebSocket.OPEN) {
-        send(activeSocket, { type: 'error', message: `Page capture failed: ${error.message}` });
-      }
+async function setScreencast(on) {
+  if (!cdp) return;
+  try {
+    if (on) {
+      await cdp.send('Page.stopScreencast').catch(() => {});
+      await cdp.send('Page.startScreencast', { format: 'jpeg', quality: 55, maxWidth: VIEWPORT.width, maxHeight: VIEWPORT.height, everyNthFrame: 1 });
+    } else {
+      await cdp.send('Page.stopScreencast');
     }
-  }
-  setTimeout(() => void streamScreenshots(), FRAME_INTERVAL_MS).unref();
+  } catch { /* page navigating; frames resume on next start */ }
+}
+
+let pendingFrame;
+let flushTimer;
+
+function flushFrame() {
+  flushTimer = undefined;
+  const socket = activeSocket;
+  if (!pendingFrame || socket?.readyState !== WebSocket.OPEN) { pendingFrame = undefined; return; }
+  if (socket.bufferedAmount > 256 * 1024) { flushTimer = setTimeout(flushFrame, 40); return; }
+  const frame = pendingFrame;
+  pendingFrame = undefined;
+  socket.send(frame, { binary: true });
+}
+
+function onScreencastFrame({ data, sessionId }) {
+  cdp.send('Page.screencastFrameAck', { sessionId }).catch(() => {});
+  // Keep only the newest frame; a slow client skips ahead instead of lagging.
+  pendingFrame = Buffer.concat([Buffer.from([0]), Buffer.from(data, 'base64')]);
+  if (!flushTimer) flushFrame();
 }
 
 async function start() {
@@ -379,6 +413,18 @@ async function start() {
       '--disable-sync',
       '--disable-default-apps',
       '--renderer-process-limit=1',
+      '--disable-background-timer-throttling',
+      '--disable-renderer-backgrounding',
+      '--disable-backgrounding-occluded-windows',
+      '--disable-breakpad',
+      '--disable-component-update',
+      '--disable-domain-reliability',
+      '--disable-features=Translate,MediaRouter,OptimizationHints,InterestFeedContentSuggestions',
+      '--no-first-run',
+      '--mute-audio=false',
+      '--enable-gpu-rasterization',
+      '--ignore-gpu-blocklist',
+      '--enable-zero-copy',
       '--autoplay-policy=no-user-gesture-required',
       `--window-size=${VIEWPORT.width},${VIEWPORT.height}`,
     ],
@@ -455,11 +501,19 @@ async function start() {
       }
     }, true);
   });
-  await page.goto('about:blank');
+  cdp = await page.createCDPSession();
+  cdp.on('Page.screencastFrame', onScreencastFrame);
+  // A navigation can swap the renderer and silently end the screencast; restart it.
+  page.on('framenavigated', (frame) => {
+    if (frame === page.mainFrame() && activeSocket?.readyState === WebSocket.OPEN) {
+      setTimeout(() => void setScreencast(true), 0);
+    }
+  });
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`Remote browser listening on port ${PORT}`);
   });
-  void streamScreenshots();
+  await new Promise((resolve) => (server.listening ? resolve() : server.once('listening', resolve)));
+  await page.goto(HOME_URL).catch((error) => console.error('Home page failed:', error.message));
 }
 
 async function shutdown() {

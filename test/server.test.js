@@ -42,3 +42,16 @@ test('login grants access to the browser page', async () => {
   assert.equal(page.status, 200);
   assert.match(await page.text(), /Remote Chromium page/);
 });
+
+test('menu page requires a session and then serves', async () => {
+  assert.equal((await fetch(`${origin}/menu`)).status, 401);
+  const login = await fetch(`${origin}/api/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password }),
+  });
+  const cookie = login.headers.get('set-cookie').split(';', 1)[0];
+  const menu = await fetch(`${origin}/menu`, { headers: { cookie } });
+  assert.equal(menu.status, 200);
+  assert.match(await menu.text(), /Quick launch/);
+});

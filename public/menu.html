@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#111827">
+    <title>Menu · Remote Browser</title>
+    <link rel="stylesheet" href="/menu.css">
+  </head>
+  <body>
+    <header class="top">
+      <div class="brand"><span class="mark" aria-hidden="true">B</span><b>Remote Browser</b></div>
+      <nav>
+        <a class="btn primary" href="/app/">Open browser</a>
+        <button class="btn" id="logout" type="button">Lock</button>
+      </nav>
+    </header>
+    <main>
+      <h1>Menu</h1>
+      <form id="go" class="search">
+        <input id="q" type="text" inputmode="url" autocomplete="off" spellcheck="false"
+          placeholder="Search or enter a website address" aria-label="Search or address">
+        <button class="btn primary" type="submit">Go</button>
+      </form>
+
+      <h2>Quick launch</h2>
+      <ul class="grid" id="shortcuts"></ul>
+
+      <h2>Your shortcuts <button class="link" id="add" type="button">+ Add</button></h2>
+      <ul class="grid" id="custom"></ul>
+
+      <h2>Session</h2>
+      <ul class="stats">
+        <li><span>Status</span><b id="health">…</b></li>
+        <li><span>Resources</span><b>1 GB · 2 vCPU</b></li>
+        <li><span>Stream</span><b>JPEG ≤12 FPS · Opus audio</b></li>
+      </ul>
+    </main>
+    <script src="/menu.js" defer></script>
+  </body>
+</html>

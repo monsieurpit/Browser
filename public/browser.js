@@ -159,6 +159,11 @@
     socket.addEventListener('open', () => {
       statusText.textContent = 'Connected to Railway Chromium';
       statusDot.classList.add('online');
+      const go = new URLSearchParams(location.search).get('go');
+      if (go) {
+        history.replaceState(null, '', location.pathname);
+        send({ type: 'navigate', url: go });
+      }
     });
     socket.addEventListener('message', (event) => {
       if (typeof event.data !== 'string') {

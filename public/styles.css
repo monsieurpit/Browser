@@ -94,6 +94,7 @@ button:disabled { opacity: .6; cursor: wait; }
   cursor: pointer;
   font-size: 21px;
 }
+.icon-button { text-decoration: none; }
 .icon-button:hover, .logout-button:hover { background: #263248; }
 
 .address-form {

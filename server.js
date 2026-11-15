@@ -128,6 +128,10 @@ app.post('/api/logout', requireSession, (_req, res) => {
 app.get(['/app', '/app/'], requireSession, (_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'app.html'));
 });
+app.get(['/menu', '/menu/'], requireSession, (_req, res) => {
+  res.set('Cache-Control', 'private, no-cache');
+  res.sendFile(path.join(__dirname, 'public', 'menu.html'));
+});
 app.get('/app.html', requireSession, (_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'app.html'));
 });

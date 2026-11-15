@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#111827">
+    <title>Remote Browser</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body class="browser-page">
+    <header class="toolbar">
+      <div class="toolbar-actions">
+        <button class="icon-button" id="back" title="Back" aria-label="Back">←</button>
+        <button class="icon-button" id="forward" title="Forward" aria-label="Forward">→</button>
+        <button class="icon-button" id="reload" title="Reload" aria-label="Reload">⟳</button>
+      </div>
+      <form id="address-form" class="address-form">
+        <span class="lock-icon" aria-hidden="true">◆</span>
+        <input id="address" type="text" inputmode="url" autocomplete="url" spellcheck="false"
+          placeholder="Search or enter a website address" aria-label="Website address">
+        <button class="go-button" type="submit">Go</button>
+      </form>
+      <button id="audio-toggle" class="audio-toggle" type="button">Enable audio</button>
+      <button id="logout" class="logout-button">Lock</button>
+    </header>
+    <main class="viewport-shell">
+      <div class="status-bar">
+        <span id="status-dot" class="status-dot"></span>
+        <span id="status-text">Connecting to Railway Chromium…</span>
+        <span class="help-text">Click page to type · Scroll to navigate</span>
+      </div>
+      <div id="audio-output" class="audio-output" aria-label="Remote page audio"></div>
+      <div class="screen-wrap">
+        <img id="screen" alt="Remote Chromium page" tabindex="0" draggable="false">
+        <div id="screen-placeholder" class="screen-placeholder">Connecting to browser…</div>
+      </div>
+    </main>
+    <p id="toast" class="toast" role="status"></p>
+    <script src="/browser.js" defer></script>
+  </body>
+</html>

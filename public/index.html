@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#111827">
+    <title>Railway Browser</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body class="login-page">
+    <main class="login-card">
+      <div class="brand-mark" aria-hidden="true">B</div>
+      <h1>Remote Browser</h1>
+      <p>Sign in to open your private browser session.</p>
+      <form id="login-form">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
+        <button type="submit">Enter browser</button>
+        <p id="login-error" class="error" role="alert"></p>
+      </form>
+    </main>
+    <script>
+      const form = document.querySelector('#login-form');
+      const error = document.querySelector('#login-error');
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        error.textContent = '';
+        const button = form.querySelector('button');
+        button.disabled = true;
+        try {
+          const response = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: form.password.value }),
+          });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || 'Could not sign in.');
+          window.location.assign('/app/');
+        } catch (cause) {
+          error.textContent = cause.message;
+        } finally {
+          button.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>

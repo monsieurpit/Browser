@@ -192,8 +192,10 @@
         return;
       }
       if (data.type === 'page') {
-        if (data.url && data.url !== 'about:blank') address.value = data.url;
-        statusText.textContent = data.title || data.url || 'Ready';
+        const isHome = /^http:\/\/127\.0\.0\.1:\d+\/start/.test(data.url || '');
+        if (isHome) address.value = '';
+        else if (data.url && data.url !== 'about:blank') address.value = data.url;
+        statusText.textContent = isHome ? 'Home' : (data.title || data.url || 'Ready');
       } else if (data.type === 'audio-start') {
         startAudio(data.id);
       } else if (data.type === 'audio-stop') {
@@ -228,6 +230,7 @@
     send({ type: 'navigate', url: destination });
     screen.focus();
   });
+  document.querySelector('#home').addEventListener('click', () => send({ type: 'home' }));
   document.querySelector('#back').addEventListener('click', () => send({ type: 'back' }));
   document.querySelector('#forward').addEventListener('click', () => send({ type: 'forward' }));
   document.querySelector('#reload').addEventListener('click', () => send({ type: 'reload' }));
